@@ -1,0 +1,28 @@
+{
+  "name": "freetoolkit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FreeToolKit — plataforma de 51 herramientas online (freemium)",
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "build:shared": "npm run build --workspace shared",
+    "dev:server": "npm run dev --workspace server",
+    "dev:client": "npm start --workspace client"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "overrides": {
+    "rxjs": "7.8.2"
+  }
+}

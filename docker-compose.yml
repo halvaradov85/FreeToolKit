@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: freetoolkit-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: freetoolkit
+      POSTGRES_PASSWORD: freetoolkit
+      POSTGRES_DB: freetoolkit
+    ports:
+      - "5432:5432"
+    volumes:
+      - freetoolkit_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U freetoolkit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  freetoolkit_pgdata:

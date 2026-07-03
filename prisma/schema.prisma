@@ -1,0 +1,175 @@
+generator client {
+  provider      = "prisma-client-js"
+  // "native" para desarrollo local; el target Debian/OpenSSL 3.0 para la imagen Docker.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Tier {
+  FREE
+  PRO
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ThemePref {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+enum SubProvider {
+  STRIPE
+  MERCADOPAGO
+}
+
+enum SubStatus {
+  ACTIVE
+  CANCELED
+  EXPIRED
+  PAST_DUE
+}
+
+enum SubjectType {
+  USER
+  ANON
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String
+  role          Role           @default(USER)
+  tier          Tier           @default(FREE)
+  status        UserStatus     @default(ACTIVE)
+  themePref     ThemePref      @default(SYSTEM)
+  localePref    String         @default("es")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+  history       HistoryItem[]
+  shortLinks    ShortLink[]
+  payments      Payment[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model Subscription {
+  id                String      @id @default(uuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  provider          SubProvider
+  providerSubId     String
+  status            SubStatus
+  currentPeriodEnd  DateTime
+  cancelAtPeriodEnd Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  payments          Payment[]
+}
+
+/// Override editable por admin de una herramienta del catálogo (la def base está en shared/).
+model Tool {
+  id                      String   @id
+  enabled                 Boolean  @default(true)
+  freeLimitPerDayOverride Int?
+  updatedAt               DateTime @updatedAt
+}
+
+model UsageRecord {
+  id          String      @id @default(uuid())
+  subjectType SubjectType
+  subjectId   String
+  toolId      String
+  usageDate   DateTime    @db.Date
+  count       Int         @default(0)
+
+  @@unique([subjectType, subjectId, toolId, usageDate])
+  @@index([toolId, usageDate])
+}
+
+model HistoryItem {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  toolId    String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model ShortLink {
+  id         String    @id @default(uuid())
+  code       String    @unique
+  targetUrl  String
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id])
+  clickCount Int       @default(0)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id])
+  subscriptionId    String?
+  subscription      Subscription? @relation(fields: [subscriptionId], references: [id])
+  provider          SubProvider
+  providerPaymentId String
+  amount            Decimal
+  currency          String
+  status            PaymentStatus
+  createdAt         DateTime      @default(now())
+}
+
+/// Mensajes del buzón de contacto (de anónimos o usuarios); solo los lee el admin.
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String?
+  email     String?
+  message   String
+  userId    String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([read, createdAt])
+}
+
+model AdminAuditLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  action     String
+  targetType String
+  targetId   String
+  createdAt  DateTime @default(now())
+}

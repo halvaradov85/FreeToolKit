@@ -1,0 +1,5 @@
+# Ignorar artefactos de build y dependencias
+dist
+node_modules
+coverage
+*.sql

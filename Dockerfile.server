@@ -1,0 +1,48 @@
+# ---------- Build ----------
+FROM node:20-bookworm-slim AS build
+WORKDIR /app
+
+# Manifiestos (para cachear la instalación de dependencias)
+COPY package.json package-lock.json ./
+COPY shared/package.json shared/
+COPY server/package.json server/
+
+RUN npm install --workspace shared --workspace server --include-workspace-root
+
+# Código y build
+COPY shared/ shared/
+COPY server/ server/
+COPY prisma/ prisma/
+
+RUN npm run build --workspace shared \
+ && npx prisma generate --schema prisma/schema.prisma \
+ && npm run build --workspace server
+
+# ---------- Runtime ----------
+FROM node:20-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+
+# LibreOffice headless para Word/Excel → PDF (+ fuentes) y dumb-init
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      libreoffice-writer libreoffice-calc fonts-dejavu dumb-init \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/shared/dist ./shared/dist
+COPY --from=build /app/shared/package.json ./shared/package.json
+COPY --from=build /app/server/dist ./server/dist
+COPY --from=build /app/server/package.json ./server/package.json
+COPY --from=build /app/prisma ./prisma
+
+# Crear y usar un usuario no-root para mayor seguridad
+RUN useradd --create-home appuser
+USER appuser
+
+EXPOSE 3000
+
+# Aplica migraciones y arranca la API.
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["sh", "-c", "npx prisma migrate deploy --schema prisma/schema.prisma && node server/dist/server.js"]

@@ -1,0 +1,289 @@
+openapi: 3.0.3
+info:
+  title: FreeToolKit API
+  version: 0.1.0
+  description: >
+    Contrato de la API de FreeToolKit. Los límites freemium se aplican en el servidor
+    (Principio III). El contenido de usuario procesado en servidor es efímero (Principio I).
+servers:
+  - url: /api/v1
+
+tags:
+  - name: auth
+  - name: catalog
+  - name: tools
+  - name: account
+  - name: billing
+  - name: admin
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Registrar usuario con email y contraseña
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credentials' }
+      responses:
+        '201': { description: Creado, content: { application/json: { schema: { $ref: '#/components/schemas/AuthTokens' } } } }
+        '409': { description: Conflicto (mensaje genérico, no revela existencia de email) }
+        '422': { description: Validación fallida }
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Iniciar sesión
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credentials' }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AuthTokens' } } } }
+        '401': { description: Credenciales inválidas (mensaje genérico) }
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Renovar el token de acceso con el refresh token
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AuthTokens' } } } }
+        '401': { description: Refresh inválido o revocado }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Cerrar sesión (revoca el refresh token)
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Sin contenido } }
+
+  /catalog/tools:
+    get:
+      tags: [catalog]
+      summary: Listar el catálogo de herramientas (con búsqueda y filtro)
+      parameters:
+        - { name: category, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ToolCatalogEntry' } }
+
+  /tools/{toolId}/execute:
+    post:
+      tags: [tools]
+      summary: Ejecutar una herramienta server-side (aplica cuota antes de procesar)
+      description: >
+        Para usuarios no-Pro, incrementa el contador diario de forma atómica antes de
+        procesar. Devuelve 429 si se agotó el cupo. Un fallo del sistema/proveedor no
+        consume cupo.
+      security: [{ bearerAuth: [] }, {}]
+      parameters:
+        - { name: toolId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                params: { type: string, description: JSON con parámetros de la herramienta }
+      responses:
+        '200': { description: Resultado (binario o JSON según la herramienta) }
+        '400': { description: Entrada inválida }
+        '402': { description: Función Pro requerida }
+        '429':
+          description: Cupo diario agotado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuotaExceeded' }
+        '503': { description: Proveedor externo no disponible (no consume cupo) }
+
+  /tools/{toolId}/quota:
+    get:
+      tags: [tools]
+      summary: Consultar el cupo restante del día para una herramienta
+      security: [{ bearerAuth: [] }, {}]
+      parameters:
+        - { name: toolId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuotaStatus' }
+
+  /account/me:
+    get:
+      tags: [account]
+      summary: Perfil, tier y preferencias del usuario
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/UserProfile' } } } } }
+
+  /account/preferences:
+    patch:
+      tags: [account]
+      summary: Actualizar tema e idioma
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                themePref: { type: string, enum: [LIGHT, DARK, SYSTEM] }
+                localePref: { type: string }
+      responses: { '200': { description: OK } }
+
+  /account/history:
+    get:
+      tags: [account]
+      summary: Historial de uso reciente del usuario
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/HistoryItem' } }
+
+  /billing/checkout:
+    post:
+      tags: [billing]
+      summary: Iniciar el upgrade a Pro con una pasarela
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider]
+              properties:
+                provider: { type: string, enum: [STRIPE, MERCADOPAGO] }
+      responses:
+        '200':
+          description: URL/sesión de pago
+          content:
+            application/json:
+              schema: { type: object, properties: { checkoutUrl: { type: string } } }
+
+  /billing/subscription:
+    get:
+      tags: [billing]
+      summary: Estado de la suscripción del usuario
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Subscription' } } } } }
+    delete:
+      tags: [billing]
+      summary: Cancelar Pro (mantiene acceso hasta fin de periodo)
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: OK } }
+
+  /billing/webhook/{provider}:
+    post:
+      tags: [billing]
+      summary: Webhook de la pasarela (verificado e idempotente)
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [stripe, mercadopago] } }
+      responses: { '200': { description: Procesado } }
+
+  /admin/metrics:
+    get:
+      tags: [admin]
+      summary: Métricas agregadas de uso y suscripciones
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: OK }, '403': { description: Solo admin } }
+
+  /admin/users:
+    get:
+      tags: [admin]
+      summary: Listar/gestionar usuarios
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: OK }, '403': { description: Solo admin } }
+
+  /admin/tools/{toolId}:
+    patch:
+      tags: [admin]
+      summary: Activar/desactivar herramienta o ajustar su límite
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: toolId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled: { type: boolean }
+                freeLimitPerDayOverride: { type: integer, nullable: true }
+      responses: { '200': { description: OK }, '403': { description: Solo admin } }
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+    AuthTokens:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+    ToolCatalogEntry:
+      type: object
+      properties:
+        id: { type: string }
+        category: { type: string }
+        name: { type: string }
+        tier: { type: string, enum: [FREE, PRO] }
+        freeLimitPerDay: { type: integer, nullable: true }
+        runtime: { type: string, enum: [client, server] }
+        provider: { type: string, nullable: true }
+        proFeatures: { type: array, items: { type: string } }
+        enabled: { type: boolean }
+    QuotaStatus:
+      type: object
+      properties:
+        toolId: { type: string }
+        limit: { type: integer, nullable: true }
+        used: { type: integer }
+        remaining: { type: integer, nullable: true }
+        unlimited: { type: boolean }
+    QuotaExceeded:
+      type: object
+      properties:
+        error: { type: string, example: quota_exceeded }
+        toolId: { type: string }
+        upgradeUrl: { type: string }
+    UserProfile:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [USER, ADMIN] }
+        tier: { type: string, enum: [FREE, PRO] }
+        themePref: { type: string, enum: [LIGHT, DARK, SYSTEM] }
+        localePref: { type: string }
+    HistoryItem:
+      type: object
+      properties:
+        id: { type: string }
+        toolId: { type: string }
+        createdAt: { type: string, format: date-time }
+    Subscription:
+      type: object
+      properties:
+        status: { type: string, enum: [ACTIVE, CANCELED, EXPIRED, PAST_DUE] }
+        provider: { type: string, enum: [STRIPE, MERCADOPAGO] }
+        currentPeriodEnd: { type: string, format: date-time }
+        cancelAtPeriodEnd: { type: boolean }

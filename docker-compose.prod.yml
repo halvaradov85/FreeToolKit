@@ -1,0 +1,58 @@
+# Despliegue de producción: db + API + cliente (nginx).
+# Uso: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# Define los secretos en un archivo .env.prod junto a este compose.
+# Proyecto propio para no colisionar con el entorno de desarrollo (docker-compose.yml).
+name: freetoolkit-prod
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    # Es más robusto definir las variables aquí también para el healthcheck
+    environment:
+      # El healthcheck usa POSTGRES_USER, así que lo definimos explícitamente.
+      # El valor por defecto es el mismo que en el servicio 'server'.
+      POSTGRES_USER: ${POSTGRES_USER:-freetoolkit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-freetoolkit}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-freetoolkit}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-freetoolkit}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-freetoolkit}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?define JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?define JWT_REFRESH_SECRET}
+      TZ_REFERENCE: ${TZ_REFERENCE:-America/Lima}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN:-}
+    expose:
+      - "3000"
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    # El servicio 'client' (nginx) depende de que el backend esté disponible para hacer proxy.
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "${WEB_PORT:-8080}:80" # Usar 8080 por defecto para evitar conflictos.
+
+volumes:
+  pgdata:

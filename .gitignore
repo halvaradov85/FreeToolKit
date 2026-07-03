@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+**/dist/
+client/.angular/
+
+# Env & secrets
+.env
+.env.prod
+*.local
+
+# Prisma
+prisma/*.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/settings.local.json
+
+# Coverage / tmp
+coverage/
+*.tmp
+tmp/
+
+
+.claude/settings.local.json

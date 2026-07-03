@@ -1,0 +1,15 @@
+{
+  "app.title": "FreeToolKit",
+  "app.tagline": "51 free online tools",
+  "nav.catalog": "Tools",
+  "nav.theme": "Theme",
+  "landing.heading": "All your tools in one place",
+  "landing.subheading": "51 free online utilities: images, text, PDF, dev, converters, calculators, social and security. No install required.",
+  "landing.cta": "Browse tools",
+  "catalog.search": "Search a tool…",
+  "catalog.all": "All",
+  "catalog.empty": "No tools found.",
+  "tool.notImplemented": "This tool is coming soon.",
+  "tool.back": "← Back to catalog",
+  "tool.serverNote": "This tool is processed on the server (available in a later phase)."
+}

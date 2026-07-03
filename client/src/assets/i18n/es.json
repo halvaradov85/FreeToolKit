@@ -1,0 +1,15 @@
+{
+  "app.title": "FreeToolKit",
+  "app.tagline": "51 herramientas online gratis",
+  "nav.catalog": "Herramientas",
+  "nav.theme": "Tema",
+  "landing.heading": "Todas tus herramientas, en un solo lugar",
+  "landing.subheading": "51 utilidades online gratuitas: imágenes, texto, PDF, desarrollo, conversores, calculadoras, redes y seguridad. Sin instalar nada.",
+  "landing.cta": "Ver herramientas",
+  "catalog.search": "Buscar herramienta…",
+  "catalog.all": "Todas",
+  "catalog.empty": "No se encontraron herramientas.",
+  "tool.notImplemented": "Esta herramienta llega muy pronto.",
+  "tool.back": "← Volver al catálogo",
+  "tool.serverNote": "Esta herramienta se procesa en el servidor (disponible en una fase posterior)."
+}
