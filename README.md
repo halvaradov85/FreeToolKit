@@ -70,3 +70,13 @@ implementadas. Pendiente: integraciones reales de proveedores y pasarelas (requi
 keys), Word/Excel→PDF (LibreOffice), E2E Playwright.
 
 Especificación completa en `specs/001-freetoolkit-platform/`.
+
+
+## ❤️ Support FreeToolKit
+
+If you find this project useful, you can support its development:
+
+👉 Donate here: https://www.paypal.com/ncp/payment/PNNF7MWXM9SAN
+
+Every contribution helps improve the platform and add new tools.
+
